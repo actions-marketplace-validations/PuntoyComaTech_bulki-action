@@ -48,37 +48,35 @@ runs:
     - name: Run bulki
       id: bulki
       shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_FORMAT: ${{ inputs.format }}
+        INPUT_QUALITY: ${{ inputs.quality }}
+        INPUT_RESIZE: ${{ inputs.resize }}
+        INPUT_MAX_SIZE: ${{ inputs.max-size }}
+        INPUT_DESTINATION: ${{ inputs.destination }}
+        INPUT_OUTPUT_FOLDER: ${{ inputs.output-folder }}
       run: |
-        CMD="npx --yes @puntoycoma/bulki compress ${{ inputs.path }} -q ${{ inputs.quality }}"
+        ARGS="compress \"$INPUT_PATH\" -q \"$INPUT_QUALITY\""
 
-        if [ -n "${{ inputs.format }}" ]; then
-          CMD="$CMD -f ${{ inputs.format }}"
-        fi
+        [ -n "$INPUT_FORMAT" ] && ARGS="$ARGS -f \"$INPUT_FORMAT\""
+        [ -n "$INPUT_RESIZE" ] && ARGS="$ARGS -r \"$INPUT_RESIZE\""
+        [ -n "$INPUT_MAX_SIZE" ] && ARGS="$ARGS --max-size \"$INPUT_MAX_SIZE\""
+        [ "$INPUT_DESTINATION" != "." ] && ARGS="$ARGS -d \"$INPUT_DESTINATION\""
+        [ "$INPUT_OUTPUT_FOLDER" != "bulki-output" ] && ARGS="$ARGS -o \"$INPUT_OUTPUT_FOLDER\""
 
-        if [ -n "${{ inputs.resize }}" ]; then
-          CMD="$CMD -r ${{ inputs.resize }}"
-        fi
+        ARGS="$ARGS --json"
 
-        if [ -n "${{ inputs.max-size }}" ]; then
-          CMD="$CMD --max-size ${{ inputs.max-size }}"
-        fi
+        RESULT=$(npx --yes @puntoycoma/bulki $ARGS)
 
-        if [ "${{ inputs.destination }}" != "." ]; then
-          CMD="$CMD -d ${{ inputs.destination }}"
-        fi
+        EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+        echo "json<<$EOF" >> $GITHUB_OUTPUT
+        echo "$RESULT" >> $GITHUB_OUTPUT
+        echo "$EOF" >> $GITHUB_OUTPUT
 
-        if [ "${{ inputs.output-folder }}" != "bulki-output" ]; then
-          CMD="$CMD -o ${{ inputs.output-folder }}"
-        fi
-
-        CMD="$CMD --json"
-
-        RESULT=$(eval $CMD)
-        echo "json=$RESULT" >> $GITHUB_OUTPUT
-
-        echo "$RESULT" | npx --yes json-summary 2>/dev/null || echo "$RESULT" | node -e "
-          const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+        node -e "
+          const d = JSON.parse(process.argv[1]);
           const s = d.summary;
           console.log('Optimized ' + s.totalFiles + ' files | ' + Math.round(s.totalOriginalSize/1024) + ' KB -> ' + Math.round(s.totalNewSize/1024) + ' KB (' + s.totalReduction + '% reduction)');
           if (s.errors > 0) console.log('Errors: ' + s.errors);
-        "
+        " "$RESULT"
