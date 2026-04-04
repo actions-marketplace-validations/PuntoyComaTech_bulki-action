@@ -1,0 +1,84 @@
+name: 'Bulki Image Optimizer'
+description: 'Compress, resize, and convert images (JPEG, PNG, WebP, GIF, AVIF) in your CI/CD pipeline. Powered by Sharp. Free, fast, no API keys.'
+author: 'PuntoyComaTech'
+
+branding:
+  icon: 'image'
+  color: 'orange'
+
+inputs:
+  path:
+    description: 'File or directory to optimize'
+    required: true
+  format:
+    description: 'Output format: jpeg, png, webp, gif, avif'
+    required: false
+  quality:
+    description: 'Output quality (1-100)'
+    required: false
+    default: '70'
+  resize:
+    description: 'Max width in pixels'
+    required: false
+  max-size:
+    description: 'Fail if any output exceeds this size (e.g., 200kb, 1mb)'
+    required: false
+  destination:
+    description: 'Output base directory'
+    required: false
+    default: '.'
+  output-folder:
+    description: 'Output folder name'
+    required: false
+    default: 'bulki-output'
+
+outputs:
+  json:
+    description: 'JSON results of the optimization'
+    value: ${{ steps.bulki.outputs.json }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Run bulki
+      id: bulki
+      shell: bash
+      run: |
+        CMD="npx --yes @puntoycoma/bulki compress ${{ inputs.path }} -q ${{ inputs.quality }}"
+
+        if [ -n "${{ inputs.format }}" ]; then
+          CMD="$CMD -f ${{ inputs.format }}"
+        fi
+
+        if [ -n "${{ inputs.resize }}" ]; then
+          CMD="$CMD -r ${{ inputs.resize }}"
+        fi
+
+        if [ -n "${{ inputs.max-size }}" ]; then
+          CMD="$CMD --max-size ${{ inputs.max-size }}"
+        fi
+
+        if [ "${{ inputs.destination }}" != "." ]; then
+          CMD="$CMD -d ${{ inputs.destination }}"
+        fi
+
+        if [ "${{ inputs.output-folder }}" != "bulki-output" ]; then
+          CMD="$CMD -o ${{ inputs.output-folder }}"
+        fi
+
+        CMD="$CMD --json"
+
+        RESULT=$(eval $CMD)
+        echo "json=$RESULT" >> $GITHUB_OUTPUT
+
+        echo "$RESULT" | npx --yes json-summary 2>/dev/null || echo "$RESULT" | node -e "
+          const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+          const s = d.summary;
+          console.log('Optimized ' + s.totalFiles + ' files | ' + Math.round(s.totalOriginalSize/1024) + ' KB -> ' + Math.round(s.totalNewSize/1024) + ' KB (' + s.totalReduction + '% reduction)');
+          if (s.errors > 0) console.log('Errors: ' + s.errors);
+        "
