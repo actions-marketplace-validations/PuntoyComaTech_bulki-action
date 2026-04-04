@@ -1,5 +1,5 @@
 name: 'Bulki Image Optimizer'
-description: 'Compress, resize, and convert images (JPEG, PNG, WebP, GIF, AVIF) in your CI/CD pipeline. Powered by Sharp. Free, fast, no API keys.'
+description: 'Compress, resize, and convert images (JPEG, PNG, WebP, AVIF) in CI/CD. Fast, free, no API keys.'
 author: 'PuntoyComaTech'
 
 branding:
